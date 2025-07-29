@@ -101,42 +101,6 @@ const FileSharingBackground = () => (
     </svg>
 
     {/* Client-only floating file icons */}
-    <ClientOnly>
-      <div className="absolute inset-0">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-md"
-            initial={{
-              x: `${Math.random() * 100}%`,
-              y: `${Math.random() * 100}%`,
-              opacity: Math.random() * 0.5 + 0.2,
-              scale: Math.random() * 0.5 + 0.5,
-            }}
-            animate={{
-              y: [`${Math.random() * 100}%`, `${Math.random() * 100}%`],
-              x: [`${Math.random() * 100}%`, `${Math.random() * 100}%`],
-            }}
-            transition={{
-              duration: Math.random() * 50 + 50,
-              repeat: Infinity,
-              repeatType: "reverse",
-            }}>
-            <svg
-              width={Math.random() * 30 + 20}
-              height={Math.random() * 30 + 20}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              className="text-primary/10">
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-          </motion.div>
-        ))}
-      </div>
-    </ClientOnly>
   </div>
 );
 
@@ -144,20 +108,6 @@ const FileSharingBackground = () => (
 const FastShareLogo = () => (
   <motion.div className="text-center mb-8" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }}>
     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-1 text-foreground flex items-center justify-center gap-2">
-      <svg
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-primary">
-        <path d="m8 13 3-3 3 3" />
-        <path d="M11 10v8" />
-        <path d="M8 3h8l4 4-8 8-8-8Z" />
-      </svg>
       Fast<span className="text-primary">Share</span>
     </h1>
     <p className="text-foreground text-sm md:text-base">Fast, Simple Sharing</p>

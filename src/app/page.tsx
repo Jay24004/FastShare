@@ -829,7 +829,7 @@ export default function Home() {
                           <div className="text-center space-y-2">
                             <p className="text-foreground">{isDragging ? "Drop your files here" : "Drag and drop files here or click to browse"}</p>
                             <div className="flex items-center justify-center gap-2 text-xs text-foreground">
-                              <Badge variant="outline">Max: 64MB</Badge>
+                              <Badge variant="outline">Max: 128MB</Badge>
                             </div>
                           </div>
 

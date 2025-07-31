@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +31,7 @@ export default function RootLayout({
         <Toaster
           position="bottom-right"
           duration={3000}
-          expand={true}
+          expand={false}
           toastOptions={{
             className: "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100",
             duration: 3000,
@@ -39,6 +40,7 @@ export default function RootLayout({
             },
           }}
         />
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || ""} />
       </body>
     </html>
   );

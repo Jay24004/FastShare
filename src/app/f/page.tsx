@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -24,7 +24,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from "@/components/ui/input-otp";
 import { Separator } from "@/components/ui/separator";
 import JSZip from "jszip";
 
@@ -118,24 +117,14 @@ const FileSharingBackground = () => (
 // Add a Logo component to match the upload page
 const FastShareLogo = () => (
   <motion.div className="text-center mb-8" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }}>
-    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-1 text-foreground flex items-center justify-center gap-2">
-      <svg
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-primary">
-        <path d="m8 13 3-3 3 3" />
-        <path d="M11 10v8" />
-        <path d="M8 3h8l4 4-8 8-8-8Z" />
-      </svg>
-      Fast<span className="text-primary">Share</span>
+    <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-1 text-foreground flex flex-col md:flex-row items-center justify-center gap-2">
+      <span className="flex items-center justify-center gap-2">
+        <span>
+          Fast<span className="text-primary">Share</span>
+        </span>
+      </span>
     </h1>
-    <p className="text-muted-foreground text-sm md:text-base">Fast, Simple Sharing</p>
+    <p className="text-muted-foreground text-xs md:text-base mt-1 md:mt-0">Fast, Simple Sharing</p>
   </motion.div>
 );
 
@@ -157,6 +146,120 @@ const getDownloadUrl = (key: string) => {
   return `${prefix}${key}`;
 };
 
+// Define OtpInput component props interface
+interface OtpInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onComplete?: (value: string) => void;
+  length?: number;
+}
+
+// Reusable Alphanumeric OTP Input Component
+const OtpInput = ({ value, onChange, onComplete, length = 6 }: OtpInputProps) => {
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const REGEXP_ALPHANUMERIC = useMemo(() => /^[a-zA-Z0-9]+$/, []);
+
+  // --- Event Handlers ---
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const newValue = e.target.value;
+    const oldVal = value[index] || "";
+
+    // Allow only single alphanumeric characters
+    if (newValue.length > 1) {
+      // Don't handle paste here - it's handled by the onPaste event
+      return;
+    }
+
+    if (newValue === oldVal) return;
+
+    // Update the OTP value
+    const newOtp = value.split("");
+    newOtp[index] = newValue;
+    const finalOtp = newOtp.join("").slice(0, length);
+    onChange(finalOtp);
+
+    // Move focus to the next input if a character is entered
+    if (newValue && index < length - 1) {
+      inputsRef.current[index + 1]?.focus();
+    }
+
+    // Trigger onComplete when the OTP is fully entered
+    if (finalOtp.length === length) {
+      onComplete?.(finalOtp);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    // Move focus to the previous input on backspace if the current input is empty
+    if (e.key === "Backspace" && !value[index] && index > 0) {
+      inputsRef.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      e.preventDefault();
+      const pastedData = e.clipboardData.getData("text/plain").trim().slice(0, length);
+
+      if (REGEXP_ALPHANUMERIC.test(pastedData)) {
+        onChange(pastedData);
+        if (pastedData.length === length) {
+          onComplete?.(pastedData);
+          // Blur the last input if paste is complete
+          inputsRef.current[length - 1]?.blur();
+        } else {
+          // Focus on the next empty slot after paste
+          inputsRef.current[pastedData.length]?.focus();
+        }
+      }
+    },
+    [length, onComplete, onChange, REGEXP_ALPHANUMERIC]
+  );
+
+  // --- Rendering ---
+  const renderInputs = () => {
+    const inputs = [];
+    for (let i = 0; i < length; i++) {
+      inputs.push(
+        <input
+          key={i}
+          ref={(el) => {
+            inputsRef.current[i] = el;
+          }}
+          type="text"
+          pattern="[a-zA-Z0-9]*"
+          inputMode="text"
+          maxLength={1}
+          value={value[i] || ""}
+          onChange={(e) => handleInputChange(e, i)}
+          onKeyDown={(e) => handleKeyDown(e, i)}
+          onPaste={i === 0 ? handlePaste : undefined}
+          className={`
+            w-10 h-12 md:w-14 md:h-16
+            text-center text-xl md:text-3xl font-mono
+            bg-background border-2 rounded-lg
+            transition-all duration-200
+            focus:bg-accent focus:border-primary focus:ring-2 focus:ring-primary/40
+            ${value[i] ? "border-primary" : "border-muted"}
+            text-foreground placeholder:text-muted-foreground
+            outline-none
+          `}
+          style={{
+            boxShadow: value[i] ? "0 0 0 2px var(--primary)" : "0 0 0 1px var(--muted)",
+          }}
+          autoComplete="off"
+        />
+      );
+      if (i === 2) {
+        inputs.push(<div key="separator" className="w-3 h-1 bg-muted rounded-full mx-1" />);
+      }
+    }
+    return inputs;
+  };
+
+  return <div className="flex items-center justify-center gap-1 md:gap-3">{renderInputs()}</div>;
+};
 
 // Main content component. It's inside a client module, so it can use hooks.
 function DownloadPageContent() {
@@ -465,7 +568,7 @@ function DownloadPageContent() {
 
   // The entire JSX from your component goes here...
   return (
-    <div className="relative min-h-screen w-full">
+    <div className="relative min-h-screen w-full bg-background">
       {/* Background Elements */}
       <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-background/90 z-0" />
       <ConnectionLines />
@@ -473,7 +576,7 @@ function DownloadPageContent() {
         <FileSharingBackground />
       </ClientOnly>
 
-      <div className="relative z-10 container mx-auto px-4 py-10 md:py-16 flex flex-col items-center justify-center min-h-screen">
+      <div className="relative z-10 container mx-auto px-2 py-6 md:px-4 md:py-10 flex flex-col items-center justify-center min-h-screen">
         {/* Logo and Tagline */}
         <FastShareLogo />
 
@@ -482,7 +585,7 @@ function DownloadPageContent() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="w-full max-w-xl">
+          className="w-full max-w-xl md:max-w-xl sm:max-w-full">
           {fileData ? (
             // Show file listing view when files are fetched
             <Card className="shadow-lg border-t-4 border-t-primary backdrop-blur-sm bg-background/80 border-primary/10">
@@ -609,7 +712,7 @@ function DownloadPageContent() {
                   Enter Another Code
                 </Button>
 
-                <Button variant="ghost" onClick={() => router.push("/share")} className="flex items-center gap-1.5">
+                <Button variant="ghost" onClick={() => router.push("/")} className="flex items-center gap-1.5">
                   <Upload className="h-4 w-4" />
                   Share Files
                 </Button>
@@ -671,19 +774,7 @@ function DownloadPageContent() {
                   <CardContent className="space-y-8">
                     <div className="space-y-6">
                       <div className="flex justify-center">
-                        <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={handleCodeComplete}>
-                          <InputOTPGroup>
-                            <InputOTPSlot index={0} />
-                            <InputOTPSlot index={1} />
-                            <InputOTPSlot index={2} />
-                          </InputOTPGroup>
-                          <InputOTPSeparator />
-                          <InputOTPGroup>
-                            <InputOTPSlot index={3} />
-                            <InputOTPSlot index={4} />
-                            <InputOTPSlot index={5} />
-                          </InputOTPGroup>
-                        </InputOTP>
+                        <OtpInput value={code} onChange={setCode} onComplete={handleCodeComplete} />
                       </div>
 
                       <AnimatePresence>
@@ -779,7 +870,7 @@ function DownloadPageContent() {
                           <p className="text-muted-foreground font-medium">No history found</p>
                           <p className="text-sm text-muted-foreground/70">Your recent shares will appear here</p>
                         </div>
-                        <Button variant="outline" size="sm" className="mt-2 bg-background/80 backdrop-blur-sm" onClick={() => router.push("/share")}>
+                        <Button variant="outline" size="sm" className="mt-2 bg-background/80 backdrop-blur-sm" onClick={() => router.push("/")}>
                           <Upload className="w-4 h-4 mr-2" />
                           Share Files
                         </Button>
@@ -869,7 +960,7 @@ function DownloadPageContent() {
                   <CardFooter className="pt-3 pb-6 flex justify-between border-t mt-4">
                     <Button
                       variant="outline"
-                      onClick={() => router.push("/share")}
+                      onClick={() => router.push("/")}
                       className="flex items-center gap-1.5 bg-background/80 backdrop-blur-sm">
                       <Upload className="h-4 w-4" />
                       Share Files
@@ -892,6 +983,12 @@ function DownloadPageContent() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1, duration: 1 }}
           className="mt-auto pt-6 text-center text-xs text-muted-foreground">
+          <div className="flex justify-center mb-6">
+            <Button size="lg" className="cursor-pointer" variant="secondary" onClick={() => router.push("/")}>
+              <Search />
+              Looking to share files?
+            </Button>
+          </div>
           <p>FastShare — Share files with anyone</p>
         </motion.div>
       </div>

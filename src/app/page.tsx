@@ -1437,12 +1437,6 @@ export default function Home() {
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="flex justify-center mt-6">
-            <Button size="lg" className="cursor-pointer" variant="secondary" onClick={() => router.push("/f")}>
-              <Search />
-              Looking to download files?
-            </Button>
-          </div>
         </motion.div>
 
         {/* Footer */}
@@ -1451,6 +1445,12 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1, duration: 1 }}
           className="mt-auto pt-6 text-center text-xs text-foreground">
+          <div className="flex justify-center mb-6">
+            <Button size="lg" className="cursor-pointer" variant="secondary" onClick={() => router.push("/f")}>
+              <Search />
+              Looking to download files?
+            </Button>
+          </div>
           <p>FastShare — Share files with anyone</p>
         </motion.div>
       </div>

@@ -5,7 +5,7 @@ const f = createUploadthing();
 export const ourFileRouter = {
   // Define as many FileRoutes as you like, each with a unique routeSlug
   fileUploader: f({
-    blob: { maxFileSize: "64MB", maxFileCount: 30, minFileCount: 1 }, // Accept all file types with a max size of 32MB
+    blob: { maxFileSize: "128MB", maxFileCount: 30, minFileCount: 1 }, // Accept all file types with a max size of 32MB
   }).onUploadComplete(async ({ file }) => {
     console.log("File uploaded successfully:", file);
   }),

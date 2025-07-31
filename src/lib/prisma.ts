@@ -11,6 +11,7 @@ export interface Files {
   File: FileEntry[];
   createdAt: Date;
   ShareCode: string;
+  ExpiresAt: Date;
 }
 
 class Client {
@@ -28,6 +29,18 @@ class Client {
     return Client.instance;
   }
 
+  formatedUsage(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let index = 0;
+    let size = bytes;
+    while (size >= 1024 && index < units.length - 1) {
+      size /= 1024;
+      index++;
+    }
+    return `${size.toFixed(2)} ${units[index]}`;
+  }
+
   async GenerateShareCode(): Promise<string> {
     const timestampPart = Date.now().toString(36).slice(-4);
 
@@ -38,7 +51,7 @@ class Client {
     return uniqueCode;
   }
 
-  async createFileEntry(files: FileEntry[]): Promise<Files> {
+  async createFileEntry(files: FileEntry[], FileDuration: number): Promise<Files> {
     const shareCode = await this.GenerateShareCode();
     const TotalSize = files.reduce((acc, file) => acc + parseInt(file.Size, 10), 0).toString();
     const formatedFiles = files.map((file) => ({
@@ -53,6 +66,7 @@ class Client {
         Files: formatedFiles,
         ShareCode: shareCode,
         CreatedAt: new Date().toISOString(),
+        ExpiresAt: new Date(new Date().getTime() + FileDuration * 60 * 1000).toISOString(), // FileDuration in minutes
       },
     });
     return {
@@ -60,6 +74,7 @@ class Client {
       File: fileEntry.Files,
       createdAt: fileEntry.CreatedAt,
       ShareCode: fileEntry.ShareCode,
+      ExpiresAt: fileEntry.ExpiresAt,
     };
   }
 
@@ -70,9 +85,10 @@ class Client {
     if (!fileEntry) return null;
     return {
       size: fileEntry.Size,
-      File: fileEntry.Files,
+      File: fileEntry.Files, // includes iv and tag for each file
       createdAt: fileEntry.CreatedAt,
       ShareCode: fileEntry.ShareCode,
+      ExpiresAt: fileEntry.ExpiresAt,
     };
   }
 
@@ -80,7 +96,6 @@ class Client {
     const fileEntry = await this.prisma.fileStore.findUnique({
       where: { ShareCode: shareCode },
     });
-    // https://maoylbg5w1.ufs.sh/f/NvRPDmK2x01u1pouBaJ8MR3D2u4j5AyQGsKSqzkgBI0nWfbP part after the /f/ is the file id
     if (!fileEntry) return false;
     const deleteFiles = fileEntry.Files.map((file) => file.Key);
     console.log("Files to delete:", deleteFiles);
@@ -97,9 +112,6 @@ class Client {
     });
     const deleteResult = await res.then((response) => response.json());
     console.log("Delete result:", deleteResult);
-    // await this.prisma.fileStore.delete({
-    //   where: { ShareCode: shareCode },
-    // });
     return true;
   }
 
@@ -107,8 +119,8 @@ class Client {
     const currentDate = new Date().toISOString();
     const files = await this.prisma.fileStore.findMany({
       where: {
-        CreatedAt: {
-          lt: new Date(new Date(currentDate).getTime() - 24 * 60 * 60 * 1000), // 24 hours ago
+        ExpiresAt: {
+          lt: currentDate,
         },
       },
     });
@@ -117,6 +129,7 @@ class Client {
       File: file.Files,
       createdAt: file.CreatedAt,
       ShareCode: file.ShareCode,
+      ExpiresAt: file.ExpiresAt,
     }));
   }
 
@@ -131,6 +144,22 @@ class Client {
     }
     return expiredFiles.length;
   }
-}
 
+  async GetUsageInfo(): Promise<{ totalBytes: number; appTotalBytes: number; filesUploaded: number; limitBytes: number }> {
+    const res = fetch(`https://api.uploadthing.com/v6/getUsageInfo`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Uploadthing-Api-Key": process.env.UPLOADTHING_API_TOKEN || "",
+      },
+    });
+    const usageInfo = await res.then((response) => response.json());
+    return {
+      totalBytes: usageInfo.totalBytes,
+      appTotalBytes: usageInfo.appTotalBytes,
+      filesUploaded: usageInfo.filesUploaded,
+      limitBytes: usageInfo.limitBytes,
+    };
+  }
+}
 export const client = Client.getInstance();

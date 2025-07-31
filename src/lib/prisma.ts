@@ -120,11 +120,16 @@ class Client {
     }));
   }
 
-  async deleteExpiredFiles(): Promise<void> {
+  async deleteExpiredFiles(): Promise<number> {
     const expiredFiles = await this.getAllExpiredFiles();
+    console.log("Expired files to delete:", expiredFiles);
     for (const file of expiredFiles) {
       await this.delelteFileEntry(file.ShareCode);
+      await this.prisma.fileStore.delete({
+        where: { ShareCode: file.ShareCode },
+      });
     }
+    return expiredFiles.length;
   }
 }
 

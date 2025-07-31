@@ -6,26 +6,13 @@ import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Clock,
-  Download,
-  History,
-  Search,
-  CalendarClock,
-  CheckCircle2,
-  XCircle,
-  ArrowRight,
-  Upload,
-  FileIcon,
-  Copy,
-  AlertCircle,
-  Loader2,
-} from "lucide-react";
+import { Clock, Download, History, Search, CalendarClock, CheckCircle2, ArrowRight, Upload, Copy, AlertCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import JSZip from "jszip";
+import { getSvgIcon } from "@/lib/svgs";
 
 // Use the required interfaces
 export interface FileEntry {
@@ -40,6 +27,7 @@ export interface Files {
   createdAt: Date;
   ShareCode: string;
   OneTimeCode: boolean;
+  ExpiresAt?: string; // <-- new key for expiration timestamp
 }
 
 // Update upload history entry to use the Files interface
@@ -427,37 +415,6 @@ function DownloadPageContent() {
     fetchFiles(shareCode);
   };
 
-  // Check if a share is expired
-  const isExpired = (createdAt: Date) => {
-    try {
-      const expirationDate = new Date(createdAt);
-      expirationDate.setHours(expirationDate.getHours() + 24);
-      return new Date() > expirationDate;
-    } catch {
-      return true;
-    }
-  };
-
-  // Calculate time remaining
-  const getTimeRemaining = (createdAt: Date) => {
-    try {
-      const expirationDate = new Date(createdAt);
-      expirationDate.setHours(expirationDate.getHours() + 24);
-
-      const now = new Date();
-      const diffMs = expirationDate.getTime() - now.getTime();
-
-      if (diffMs <= 0) return "Expired";
-
-      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-      return `${diffHrs}h ${diffMins}m left`;
-    } catch {
-      return "Unknown";
-    }
-  };
-
   // Function to download a file using fetch and Blob for instant download
   const downloadFile = async (key: string, fileName: string) => {
     try {
@@ -531,32 +488,9 @@ function DownloadPageContent() {
 
   // Get a pretty file icon based on file extension
   const getFileIcon = (fileName: string) => {
-    const extension = fileName.split(".").pop()?.toLowerCase();
-
-    // Return appropriate icon based on file type
-    switch (extension) {
-      case "pdf":
-        return <FileIcon className="text-red-500" />;
-      case "jpg":
-      case "jpeg":
-      case "png":
-      case "gif":
-        return <FileIcon className="text-blue-500" />;
-      case "doc":
-      case "docx":
-        return <FileIcon className="text-blue-700" />;
-      case "xls":
-      case "xlsx":
-        return <FileIcon className="text-green-600" />;
-      case "ppt":
-      case "pptx":
-        return <FileIcon className="text-orange-600" />;
-      case "zip":
-      case "rar":
-        return <FileIcon className="text-yellow-600" />;
-      default:
-        return <FileIcon className="text-gray-500" />;
-    }
+    const extension = fileName.split(".").pop()?.toLowerCase() || "others";
+    const Icon = getSvgIcon(extension);
+    return <Icon className="w-6 h-6 text-primary" />;
   };
 
   // Reset the file view to go back to code entry
@@ -610,25 +544,25 @@ function DownloadPageContent() {
                   )}
                 </div>
 
-                <div className="mt-4 flex justify-between items-center text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">Share code:</span>
-                    <span className="font-mono">{fileData.ShareCode}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 ml-1"
-                      onClick={() => {
-                        navigator.clipboard.writeText(fileData.ShareCode);
-                        toast.success("Code copied");
-                      }}>
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>Expires {getTimeRemaining(fileData.createdAt)}</span>
-                  </div>
+                <div className="mt-4 flex items-center text-xs text-muted-foreground">
+                  <span className="font-medium">Share code:</span>
+                  <span className="font-mono">{fileData.ShareCode}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 ml-1"
+                    onClick={() => {
+                      navigator.clipboard.writeText(fileData.ShareCode);
+                      toast.success("Code copied");
+                    }}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                  {fileData.ExpiresAt && (
+                    <span className="ml-4 flex items-center gap-1">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      <span>Expires: {formatDate(fileData.ExpiresAt)}</span>
+                    </span>
+                  )}
                 </div>
               </CardHeader>
 
@@ -799,7 +733,7 @@ function DownloadPageContent() {
                         <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-primary text-xs">?</span>
                         </div>
-                        <p>Share codes are 6 characters found in your share link</p>
+                        <p>Share codes are 6 characters found in your share link, Share codes are case-sensitive.</p>
                       </div>
                     </div>
 
@@ -824,11 +758,7 @@ function DownloadPageContent() {
                   </div>
 
                   <CardFooter className="pt-3 pb-6 flex justify-between">
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <CalendarClock className="w-3.5 h-3.5" />
-                      Shared files expire after 24 hours
-                    </p>
-
+                    <div />
                     {history.length > 0 && (
                       <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab("history")}>
                         View History
@@ -879,46 +809,36 @@ function DownloadPageContent() {
                       <ScrollArea className="h-[350px] pr-4">
                         <div className="space-y-3">
                           {history.map((entry, index) => {
-                            const expired = isExpired(entry.shareResponse.createdAt);
-                            const timeRemaining = getTimeRemaining(entry.shareResponse.createdAt);
-
                             return (
                               <motion.div
                                 key={index}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.05 }}
-                                className={`border rounded-lg p-4 transition-all ${
-                                  expired
-                                    ? "border-muted/50 bg-muted/10"
-                                    : "border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 hover:border-primary/30"
-                                }`}
-                                onClick={() => !expired && handleSelectShare(entry.shareResponse.ShareCode)}
-                                whileHover={!expired ? { scale: 1.01, y: -2 } : {}}>
+                                className="border rounded-lg p-4 transition-all border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 hover:border-primary/30"
+                                onClick={() => handleSelectShare(entry.shareResponse.ShareCode)}
+                                whileHover={{ scale: 1.01, y: -2 }}>
                                 <div className="flex justify-between items-start mb-3">
                                   <div className="flex items-center gap-3">
-                                    <div
-                                      className={`w-10 h-10 rounded-full flex items-center justify-center ${expired ? "bg-muted" : "bg-primary/20"}`}>
-                                      {expired ? (
-                                        <XCircle className="w-5 h-5 text-muted-foreground" />
-                                      ) : (
-                                        <CheckCircle2 className="w-5 h-5 text-primary" />
-                                      )}
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20">
+                                      <CheckCircle2 className="w-5 h-5 text-primary" />
                                     </div>
                                     <div>
-                                      <h3 className={`text-base font-medium ${expired ? "text-muted-foreground" : ""}`}>
+                                      <h3 className="text-base font-medium">
                                         {entry.shareResponse.File.length} {entry.shareResponse.File.length === 1 ? "file" : "files"}
                                       </h3>
                                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                                         <Clock className="w-3 h-3" />
                                         {formatDate(entry.timestamp)}
+                                        {entry.shareResponse.ExpiresAt && (
+                                          <span className="ml-2 flex items-center gap-1">
+                                            <CalendarClock className="w-3 h-3" />
+                                            Expires: {formatDate(entry.shareResponse.ExpiresAt)}
+                                          </span>
+                                        )}
                                       </p>
                                     </div>
                                   </div>
-
-                                  <Badge variant={expired ? "outline" : "secondary"} className={`text-xs ${expired ? "text-muted-foreground" : ""}`}>
-                                    {expired ? "Expired" : timeRemaining}
-                                  </Badge>
                                 </div>
 
                                 <div className="flex gap-3 items-center">
@@ -930,18 +850,16 @@ function DownloadPageContent() {
                                     <p className="font-mono text-sm font-medium">{entry.shareResponse.ShareCode}</p>
                                   </div>
 
-                                  {!expired && (
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="h-full"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleSelectShare(entry.shareResponse.ShareCode);
-                                      }}>
-                                      <Download className="w-4 h-4" />
-                                    </Button>
-                                  )}
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="h-full"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSelectShare(entry.shareResponse.ShareCode);
+                                    }}>
+                                    <Download className="w-4 h-4" />
+                                  </Button>
                                 </div>
 
                                 {entry.shareResponse.OneTimeCode && (

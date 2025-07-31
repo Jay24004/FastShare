@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { genUploader } from "uploadthing/client";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 import { Upload, X, File, Check, Link as LinkIcon, Copy, FileWarning, Archive, Download, LoaderCircle, Search } from "lucide-react";
 import { OurFileRouter } from "@/app/api/uploadthing/core";
@@ -64,7 +65,7 @@ type ShareResponse = {
   }[];
   createdAt: string;
   ShareCode: string;
-  OneTimeCode: boolean;
+  ExpiresAt: string; // <-- new key for expiration timestamp
 };
 
 // Add this type for upload history entries
@@ -72,6 +73,12 @@ type UploadHistoryEntry = {
   shareResponse: ShareResponse;
   timestamp: string;
   shareLink: string;
+};
+
+const generateRandomZipName = () => {
+  const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+  return `${randomAdjective}_${randomNoun}`;
 };
 
 // Remove EnhancedProgressBar component
@@ -134,8 +141,7 @@ export default function Home() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [zipFiles, setZipFiles] = useState(false);
   const [isCreatingZip, setIsCreatingZip] = useState(false);
-  const [zipFileName, setZipFileName] = useState("files.zip");
-  const [customZipName, setCustomZipName] = useState("");
+  const [zipFileName, setZipFileName] = useState(generateRandomZipName());
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [shareResponse, setShareResponse] = useState<ShareResponse | null>(null);
@@ -144,17 +150,38 @@ export default function Home() {
   const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isValidatingHistory, setIsValidatingHistory] = useState(false);
+  const [fullnotification, setFullNotification] = useState(false);
 
   // Add state to control warning visibility
   const [showSecurityWarning, setShowSecurityWarning] = useState(true);
 
+  // Add stats state
+  const [stats, setStats] = useState<{
+    totalBytes: number;
+    appTotalBytes: number;
+    filesUploaded: number;
+    limitBytes: number;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Maximum file size in bytes (64MB)
-  const MAX_FILE_SIZE = 64 * 1024 * 1024;
+  // Maximum file size in bytes (128MB)
+  const MAX_FILE_SIZE = 128 * 1024 * 1024;
   // Allowed file types (empty means all types allowed)
   const ALLOWED_TYPES: string[] = [];
   const router = useRouter();
+
+  // Add expiration options
+  const expirationOptions = [
+    { label: "1 Minute", value: 0.0167 }, // 1 minute in days
+    { label: "1 Day", value: 1 },
+    { label: "2 Days", value: 2 },
+    { label: "3 Days", value: 3 },
+    { label: "1 Week", value: 7 },
+  ];
+
+  // Add state for expiration
+  const [expirationDays, setExpirationDays] = useState<number>(1);
 
   // Function to validate a single share code
   const validateShareCode = async (code: string): Promise<boolean> => {
@@ -229,6 +256,14 @@ export default function Home() {
     };
 
     loadAndValidateHistory();
+  }, []);
+
+  // Fetch stats before page loads
+  useEffect(() => {
+    fetch("/api/store/stats")
+      .then((res) => res.json())
+      .then((data) => setStats(data))
+      .catch(() => setStats(null));
   }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -318,27 +353,23 @@ export default function Home() {
   };
 
   // Generate a random name for the ZIP file
-  const generateRandomZipName = () => {
-    const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
-    return `${randomAdjective}_${randomNoun}`;
-  };
 
   // Create a ZIP file from the uploaded files using JSZip
   const createZip = async () => {
     return new Promise<Blob>(async (resolve, reject) => {
       setIsCreatingZip(true);
 
-      // Generate a filename based on custom input or random generation
+      // Use custom name if provided, otherwise generate random name
       let zipBaseName;
-      if (customZipName.trim()) {
-        zipBaseName = customZipName.trim().replace(/[^\w-]/g, "_");
+      if (zipFileName.trim()) {
+        zipBaseName = zipFileName.trim().replace(/[^\w-]/g, "_");
+        // Do NOT overwrite customZipName here
       } else {
         zipBaseName = generateRandomZipName();
-        setCustomZipName(zipBaseName); // Ensure customZipName is also set for UI consistency
+        setZipFileName(zipBaseName); // Only set if not provided
       }
 
-      const newZipFileName = `${zipBaseName}.zip`;
+      const newZipFileName = `${zipBaseName}`;
       setZipFileName(newZipFileName); // <-- Only set here, never revert elsewhere
       console.log(`Creating ZIP with filename: ${newZipFileName}`); // Debug log
 
@@ -465,6 +496,7 @@ export default function Home() {
           },
           body: JSON.stringify({
             Files: fileItems, // Updated to match new API format
+            ExpirationDays: expirationDays, // <-- send expiration
           }),
         });
 
@@ -525,6 +557,15 @@ export default function Home() {
       return;
     }
 
+    // Prevent upload if storage is full
+    const isStorageFull = stats && stats.totalBytes > 1800000000;
+    if (isStorageFull) {
+      toast.error("Cloud storage limit reached", {
+        description: "Uploads are temporarily disabled. Please try again later.",
+      });
+      return;
+    }
+
     // If ZIP option is selected, create the ZIP first
     if (zipFiles && uploadedFiles.length > 1) {
       toast.info("Creating ZIP archive", {
@@ -538,7 +579,7 @@ export default function Home() {
         // Use the zipFileName from state, which is set in createZip
         console.log(zipFileName); // Debug log
         console.log(`ZIP created: ${zipFileName} (${formatFileSize(zipBlobContent.size)})`); // Debug log
-        const zipFile = new window.File([zipBlobContent], zipFileName, {
+        const zipFile = new window.File([zipBlobContent], `${zipFileName}.zip`, {
           type: "application/zip",
           lastModified: new Date().getTime(),
         });
@@ -560,7 +601,6 @@ export default function Home() {
         }
       }
     } else {
-      // Upload individual files
       await performUpload(uploadedFiles);
     }
   };
@@ -575,6 +615,7 @@ export default function Home() {
   };
 
   const resetUpload = () => {
+    setZipFileName(generateRandomZipName());
     setUploadedFiles([]);
     setShareLink(null);
     setErrors({});
@@ -583,9 +624,9 @@ export default function Home() {
   // Handle zip toggle change
   const handleZipToggle = (checked: boolean) => {
     setZipFiles(checked);
-    if (checked && !customZipName) {
+    if (checked && !zipFileName) {
       const randomName = generateRandomZipName();
-      setCustomZipName(randomName);
+      setZipFileName(randomName);
       setZipFileName(`${randomName}.zip`);
     }
   };
@@ -600,13 +641,6 @@ export default function Home() {
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  // Helper to calculate expiration date (24 hours after creation)
-  const getExpirationDate = (dateString: string) => {
-    const date = new Date(dateString);
-    date.setHours(date.getHours() + 24);
-    return formatDate(date.toISOString());
   };
 
   // Function to save upload to history
@@ -640,6 +674,16 @@ export default function Home() {
       description: "You can now copy and share this link again",
     });
   };
+
+  // Define isStorageFull variable
+  const isStorageFull = stats ? stats.totalBytes > 1800000000 : false;
+
+  if (isStorageFull && !fullnotification) {
+    setFullNotification(true);
+    toast.error("Cloud storage limit reached", {
+      description: "Uploads are temporarily disabled. Please try again later.",
+    });
+  }
 
   return (
     <div className="relative min-h-screen w-full">
@@ -698,7 +742,7 @@ export default function Home() {
                         <li>Sensitive personal data</li>
                       </ul>
                       <p className="mt-1">
-                        <strong>No authentication required</strong> - anyone with the share code or link can download your files without logging in.
+                        <strong>No authentication required</strong> - anyone with the share code or link can download your files.
                       </p>
                     </div>
                     <button
@@ -786,7 +830,6 @@ export default function Home() {
                             <p className="text-foreground">{isDragging ? "Drop your files here" : "Drag and drop files here or click to browse"}</p>
                             <div className="flex items-center justify-center gap-2 text-xs text-foreground">
                               <Badge variant="outline">Max: 64MB</Badge>
-                              <Badge variant="outline">Expires: 24h</Badge>
                             </div>
                           </div>
 
@@ -842,8 +885,8 @@ export default function Home() {
 
                             <input type="file" multiple onChange={handleFileSelect} className="hidden" id="file-input" ref={fileInputRef} />
                             <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="w-full">
-                              <Button asChild size="lg" className="w-full" variant="default">
-                                <label htmlFor="file-input" className="cursor-pointer">
+                              <Button asChild size="lg" className="w-full" variant="outline" disabled={isStorageFull}>
+                                <label htmlFor="file-input" className={`cursor-pointer ${isStorageFull ? "opacity-50 pointer-events-none" : ""}`}>
                                   <Upload className="w-4 h-4 mr-2" />
                                   Browse Files
                                 </label>
@@ -879,15 +922,15 @@ export default function Home() {
                                     <div className="flex gap-2">
                                       <Input
                                         id="zip-name"
-                                        value={customZipName}
-                                        onChange={(e) => setCustomZipName(e.target.value)}
+                                        value={zipFileName}
+                                        onChange={(e) => setZipFileName(e.target.value)}
                                         placeholder="Enter custom name for ZIP file"
                                         className="text-sm"
                                       />
                                       <Button
                                         variant="outline"
                                         size="icon"
-                                        onClick={() => setCustomZipName(generateRandomZipName())}
+                                        onClick={() => setZipFileName(generateRandomZipName())}
                                         title="Generate random name">
                                         <motion.div whileHover={{ rotate: 180 }} transition={{ duration: 0.3 }}>
                                           <svg
@@ -917,43 +960,71 @@ export default function Home() {
 
                           {/* Upload Button & Progress */}
                           {uploadedFiles.length > 0 && (
-                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                              {isCreatingZip ? (
-                                <div className="flex justify-center">
-                                  <Button disabled className="w-full flex items-center justify-center gap-2" variant="secondary">
-                                    <LoaderCircle className="w-4 h-4 animate-spin text-amber-400" />
-                                    <span className="font-medium text-amber-400">Creating ZIP archive...</span>
-                                  </Button>
-                                </div>
-                              ) : isUploading ? (
-                                <div className="flex justify-center">
-                                  <Button disabled className="w-full flex items-center justify-center gap-2" variant="secondary">
-                                    <LoaderCircle className="w-4 h-4 animate-spin text-primary" />
-                                    <span className="font-medium text-primary">Uploading files...</span>
-                                  </Button>
-                                </div>
-                              ) : (
-                                <motion.div className="space-y-4">
-                                  {uploadError && (
-                                    <div className="p-3 bg-destructive/10 rounded-md text-sm text-destructive">
-                                      <p className="font-medium">Upload failed</p>
-                                      <p className="text-xs mt-1">{uploadError}</p>
-                                    </div>
-                                  )}
-                                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                    <Button onClick={handleUpload} className="w-full" size="lg" disabled={uploadedFiles.length === 0}>
-                                      {zipFiles && uploadedFiles.length > 1 ? (
-                                        <>
-                                          <Archive className="w-4 h-4 mr-2" />
-                                          Create ZIP & Upload
-                                        </>
-                                      ) : (
-                                        "Start Upload"
-                                      )}
+                            <motion.div
+                              className="flex flex-row items-center mt-6 gap-4"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.2 }}>
+                              <div className="flex-1">
+                                {isCreatingZip ? (
+                                  <div className="flex justify-center">
+                                    <Button disabled className="w-full flex items-center justify-center gap-2" variant="secondary">
+                                      <LoaderCircle className="w-4 h-4 animate-spin text-amber-400" />
+                                      <span className="font-medium text-amber-400">Creating ZIP archive...</span>
                                     </Button>
+                                  </div>
+                                ) : isUploading ? (
+                                  <div className="flex justify-center">
+                                    <Button disabled className="w-full flex items-center justify-center gap-2" variant="secondary">
+                                      <LoaderCircle className="w-4 h-4 animate-spin text-primary" />
+                                      <span className="font-medium text-primary">Uploading files...</span>
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <motion.div className="space-y-4">
+                                    {uploadError && (
+                                      <div className="p-3 bg-destructive/10 rounded-md text-sm text-destructive">
+                                        <p className="font-medium">Upload failed</p>
+                                        <p className="text-xs mt-1">{uploadError}</p>
+                                      </div>
+                                    )}
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                      <Button
+                                        variant={"default"}
+                                        onClick={handleUpload}
+                                        className="w-full"
+                                        size="lg"
+                                        disabled={uploadedFiles.length === 0 || isStorageFull}>
+                                        {zipFiles && uploadedFiles.length > 1 ? (
+                                          <>
+                                            <Archive className="w-4 h-4 mr-2" />
+                                            Create ZIP & Upload
+                                          </>
+                                        ) : (
+                                          "Start Upload"
+                                        )}
+                                      </Button>
+                                    </motion.div>
                                   </motion.div>
-                                </motion.div>
-                              )}
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 min-w-[180px]">
+                                <label htmlFor="expiration-select" className="text-sm text-muted-foreground whitespace-nowrap">
+                                  Expiration:
+                                </label>
+                                <Select value={expirationDays.toString()} onValueChange={(v) => setExpirationDays(Number(v))}>
+                                  <SelectTrigger className="w-32 bg-background text-foreground border rounded px-2 py-1 text-sm">
+                                    <SelectValue placeholder="Select expiration" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {expirationOptions.map((opt) => (
+                                      <SelectItem key={opt.value} value={opt.value.toString()}>
+                                        {opt.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </motion.div>
                           )}
                         </>
@@ -1005,12 +1076,11 @@ export default function Home() {
                                   <span>Created:</span>
                                   <span>{formatDate(shareResponse.createdAt)}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                  <span>Expires:</span>
-                                  <span>{getExpirationDate(shareResponse.createdAt)}</span>
-                                </div>
-                                {shareResponse.OneTimeCode && (
-                                  <p className="text-amber-400 mt-2">Note: This link can only be accessed once and will expire after download.</p>
+                                {shareResponse.ExpiresAt && (
+                                  <div className="flex justify-between">
+                                    <span>Expires:</span>
+                                    <span>{formatDate(shareResponse.ExpiresAt)}</span>
+                                  </div>
                                 )}
                               </div>
                             )}
@@ -1130,10 +1200,10 @@ export default function Home() {
                                     All {uploadedFiles.length} files will be compressed into a single ZIP archive before upload
                                   </p>
                                   <p className="text-xs text-foreground mt-1">A download will start automatically when the ZIP is created</p>
-                                  {customZipName && (
+                                  {zipFileName && (
                                     <div className="flex items-center mt-2">
                                       <Badge variant="outline" className="bg-background/80 text-foreground">
-                                        <span className="text-xs font-mono">{customZipName}.zip</span>
+                                        <span className="text-xs font-mono">{zipFileName}.zip</span>
                                       </Badge>
                                     </div>
                                   )}
@@ -1279,11 +1349,6 @@ export default function Home() {
                                 </div>
 
                                 <div className="flex items-center gap-1.5">
-                                  {entry.shareResponse.OneTimeCode && (
-                                    <Badge variant="destructive" className="text-xs px-2 py-0 text-destructive">
-                                      One-time
-                                    </Badge>
-                                  )}
                                   <div className="flex">
                                     <Button
                                       variant="ghost"
@@ -1350,24 +1415,26 @@ export default function Home() {
                                   </svg>
                                   <span>{formatDate(entry.timestamp)}</span>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="12"
-                                    height="12"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                    <line x1="16" y1="2" x2="16" y2="6" />
-                                    <line x1="8" y1="2" x2="8" y2="6" />
-                                    <line x1="3" y1="10" x2="21" y2="10" />
-                                  </svg>
-                                  <span>Expires: {getExpirationDate(entry.shareResponse.createdAt).split(",")[0]}</span>
-                                </div>
+                                {entry.shareResponse.ExpiresAt && (
+                                  <div className="flex items-center gap-1">
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round">
+                                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                      <line x1="16" y1="2" x2="16" y2="6" />
+                                      <line x1="8" y1="2" x2="8" y2="6" />
+                                      <line x1="3" y1="10" x2="21" y2="10" />
+                                    </svg>
+                                    <span>Expires: {formatDate(entry.shareResponse.ExpiresAt)}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
 

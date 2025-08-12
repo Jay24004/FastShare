@@ -11,7 +11,7 @@ export interface Files {
   File: FileEntry[];
   createdAt: Date;
   ShareCode: string;
-  ExpiresAt: Date;
+  ExpiresIn: number;
 }
 
 class Client {
@@ -66,7 +66,7 @@ class Client {
         Files: formatedFiles,
         ShareCode: shareCode,
         CreatedAt: new Date().toISOString(),
-        ExpiresAt: new Date(new Date().getTime() + FileDuration * 60 * 1000).toISOString(), // FileDuration in minutes
+        ExpiresIn: FileDuration,
       },
     });
     return {
@@ -74,7 +74,7 @@ class Client {
       File: fileEntry.Files,
       createdAt: fileEntry.CreatedAt,
       ShareCode: fileEntry.ShareCode,
-      ExpiresAt: fileEntry.ExpiresAt,
+      ExpiresIn: fileEntry.ExpiresIn,
     };
   }
 
@@ -88,7 +88,7 @@ class Client {
       File: fileEntry.Files, // includes iv and tag for each file
       createdAt: fileEntry.CreatedAt,
       ShareCode: fileEntry.ShareCode,
-      ExpiresAt: fileEntry.ExpiresAt,
+      ExpiresIn: fileEntry.ExpiresIn,
     };
   }
 
@@ -117,19 +117,18 @@ class Client {
 
   async getAllExpiredFiles(): Promise<Files[]> {
     const currentDate = new Date().toISOString();
-    const files = await this.prisma.fileStore.findMany({
-      where: {
-        ExpiresAt: {
-          lt: currentDate,
-        },
-      },
+    const files = await this.prisma.fileStore.findMany({});
+    const expiredFiles = files.filter((file) => {
+      const expirationTime = new Date(file.CreatedAt);
+      expirationTime.setSeconds(expirationTime.getSeconds() + file.ExpiresIn);
+      return expirationTime < new Date(currentDate);
     });
-    return files.map((file) => ({
+    return expiredFiles.map((file) => ({
       size: file.Size,
       File: file.Files,
       createdAt: file.CreatedAt,
       ShareCode: file.ShareCode,
-      ExpiresAt: file.ExpiresAt,
+      ExpiresIn: file.ExpiresIn,
     }));
   }
 

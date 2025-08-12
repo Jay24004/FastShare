@@ -25,6 +25,6 @@ model FileStore{
   Files FileEntry[]
   CreatedAt DateTime @default(now())
   ShareCode String @unique
-  ExpiresAt DateTime
+  ExpiresIn Int
   @@index([CreatedAt])
 }

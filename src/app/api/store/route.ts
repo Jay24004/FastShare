@@ -26,7 +26,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    if (fileEntry.ExpiresAt && new Date(fileEntry.ExpiresAt).toISOString() < new Date().toISOString()) {
+    // Updated expiration check for new schema
+    const createdAt = new Date(fileEntry.createdAt);
+    const expiresAt = new Date(createdAt.getTime() + fileEntry.ExpiresIn * 1000);
+    if (expiresAt < new Date()) {
       return NextResponse.json({ error: "File has expired" }, { status: 410 });
     }
 

@@ -62,43 +62,7 @@ const FileSharingBackground = () => (
       <path d="M0,200 Q300,400 600,200 T1200,200" fill="none" stroke="var(--primary)" strokeWidth="2" />
     </svg>
 
-    {/* Client-only floating file icons */}
-    <ClientOnly>
-      <div className="absolute inset-0">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-md"
-            initial={{
-              x: `${Math.random() * 100}%`,
-              y: `${Math.random() * 100}%`,
-              opacity: Math.random() * 0.5 + 0.2,
-              scale: Math.random() * 0.5 + 0.5,
-            }}
-            animate={{
-              y: [`${Math.random() * 100}%`, `${Math.random() * 100}%`],
-              x: [`${Math.random() * 100}%`, `${Math.random() * 100}%`],
-            }}
-            transition={{
-              duration: Math.random() * 50 + 50,
-              repeat: Infinity,
-              repeatType: "reverse",
-            }}>
-            <svg
-              width={Math.random() * 30 + 20}
-              height={Math.random() * 30 + 20}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              className="text-primary/10 dark:text-primary/5">
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-          </motion.div>
-        ))}
-      </div>
-    </ClientOnly>
+    
   </div>
 );
 

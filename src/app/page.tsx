@@ -173,15 +173,14 @@ export default function Home() {
 
   // Add expiration options
   const expirationOptions = [
-    { label: "1 Minute", value: 0.0167 }, // 1 minute in days
-    { label: "1 Day", value: 1 },
-    { label: "2 Days", value: 2 },
-    { label: "3 Days", value: 3 },
-    { label: "1 Week", value: 7 },
+    { label: "1 Day", value: 86400 },
+    { label: "2 Days", value: 172800 },
+    { label: "3 Days", value: 259200 },
+    { label: "1 Week", value: 604800 },
   ];
 
   // Add state for expiration
-  const [expirationDays, setExpirationDays] = useState<number>(1);
+  const [expirationDays, setExpirationDays] = useState<number>(86400);
 
   // Function to validate a single share code
   const validateShareCode = async (code: string): Promise<boolean> => {

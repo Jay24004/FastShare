@@ -567,20 +567,33 @@ function DownloadPageContent() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.05 }}
-                          className="p-3 border rounded-lg flex items-center justify-between hover:bg-accent/30 transition-colors">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">{getFileIcon(file.Name)}</div>
+                          className="p-3 border rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-accent/30 transition-colors">
+                          
+                          {/* File info section - vertical on mobile, horizontal on desktop */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1 w-full">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                              {getFileIcon(file.Name)}
+                            </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-medium text-sm truncate" title={file.Name}>
+                              <p className="font-medium text-sm sm:text-base truncate" title={file.Name}>
                                 {file.Name}
                               </p>
-                              <p className="text-xs text-muted-foreground">{formatFileSize(parseInt(file.Size))}</p>
+                              <p className="text-xs sm:text-sm text-muted-foreground">
+                                {formatFileSize(parseInt(file.Size))}
+                              </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="default" size="sm" className="h-8" onClick={async () => await downloadFile(file.Key, file.Name)}>
-                              <Download className="h-4 w-4 mr-1" />
-                              Download
+                          
+                          {/* Download button - full width on mobile, auto on desktop */}
+                          <div className="flex items-center gap-1 w-full sm:w-auto">
+                            <Button 
+                              variant="default" 
+                              size="sm" 
+                              className="h-8 sm:h-9 w-full sm:w-auto flex-1 sm:flex-none" 
+                              onClick={async () => await downloadFile(file.Key, file.Name)}
+                            >
+                              <Download className="h-4 w-4 mr-1 sm:mr-2" />
+                              <span className="text-xs sm:text-sm">Download</span>
                             </Button>
                           </div>
                         </motion.div>
@@ -635,26 +648,31 @@ function DownloadPageContent() {
           ) : (
             // Show code entry and history view when no files are fetched yet
             <Tabs defaultValue="code" value={activeTab} onValueChange={setActiveTab}>
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Download className="h-6 w-6 text-primary" />
+              <div className="flex flex-col gap-4 mb-6">
+                {/* Header section - stacked vertically on mobile */}
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Download className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h1 className="text-xl sm:text-2xl font-bold">Access Files</h1>
+                      <p className="text-xs sm:text-sm text-muted-foreground">Enter a code or select from history</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-bold">Access Files</h1>
-                    <p className="text-sm text-muted-foreground">Enter a code or select from history</p>
-                  </div>
+                  
+                  {/* Tabs - full width on mobile, auto on desktop */}
+                  <TabsList className="grid grid-cols-2 h-9 w-full sm:w-auto bg-background/80 backdrop-blur-sm">
+                    <TabsTrigger value="code" className="flex items-center gap-1 text-xs sm:text-sm">
+                      <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      <span>Code</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="history" className="flex items-center gap-1 text-xs sm:text-sm">
+                      <History className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      <span>History</span>
+                    </TabsTrigger>
+                  </TabsList>
                 </div>
-                <TabsList className="grid grid-cols-2 h-9 bg-background/80 backdrop-blur-sm">
-                  <TabsTrigger value="code" className="flex items-center gap-1">
-                    <Search className="w-3.5 h-3.5" />
-                    <span>Code</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="history" className="flex items-center gap-1">
-                    <History className="w-3.5 h-3.5" />
-                    <span>History</span>
-                  </TabsTrigger>
-                </TabsList>
               </div>
 
               <Card className="shadow-lg border-t-4 border-t-primary backdrop-blur-sm bg-background/80 border-primary/10">
@@ -782,47 +800,57 @@ function DownloadPageContent() {
                                 className="border rounded-lg p-4 transition-all border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 hover:border-primary/30"
                                 onClick={() => handleSelectShare(entry.shareResponse.ShareCode)}
                                 whileHover={{ scale: 1.01, y: -2 }}>
-                                <div className="flex justify-between items-start mb-3">
+                                
+                                {/* Header section - responsive layout */}
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20 flex-shrink-0">
                                       <CheckCircle2 className="w-5 h-5 text-primary" />
                                     </div>
-                                    <div>
+                                    <div className="min-w-0 flex-1">
                                       <h3 className="text-base font-medium">
                                         {entry.shareResponse.File.length} {entry.shareResponse.File.length === 1 ? "file" : "files"}
                                       </h3>
-                                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                        <Clock className="w-3 h-3" />
-                                        {formatDate(entry.timestamp)}
+                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-0.5">
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                          <Clock className="w-3 h-3" />
+                                          {formatDate(entry.timestamp)}
+                                        </p>
                                         {entry.shareResponse.ExpiresAt && (
-                                          <span className="ml-2 flex items-center gap-1">
+                                          <p className="text-xs text-muted-foreground flex items-center gap-1">
                                             <CalendarClock className="w-3 h-3" />
                                             Expires: {formatDate(entry.shareResponse.ExpiresAt)}
-                                          </span>
+                                          </p>
                                         )}
-                                      </p>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
 
-                                <div className="flex gap-3 items-center">
+                                {/* Code and download section - responsive layout */}
+                                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                                   <div className="flex-1 px-3 py-2 bg-background rounded border">
                                     <div className="flex justify-between items-center mb-1">
                                       <span className="text-xs text-muted-foreground">Code:</span>
-                                      <span className="text-xs text-muted-foreground">{formatFileSize(parseInt(entry.shareResponse.size))}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {formatFileSize(parseInt(entry.shareResponse.size))}
+                                      </span>
                                     </div>
-                                    <p className="font-mono text-sm font-medium">{entry.shareResponse.ShareCode}</p>
+                                    <p className="font-mono text-sm font-medium break-all sm:break-normal">
+                                      {entry.shareResponse.ShareCode}
+                                    </p>
                                   </div>
 
                                   <Button
                                     variant="default"
                                     size="sm"
-                                    className="h-full"
+                                    className="h-full w-full sm:w-auto"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleSelectShare(entry.shareResponse.ShareCode);
                                     }}>
-                                    <Download className="w-4 h-4" />
+                                    <Download className="w-4 h-4 mr-2 sm:mr-0" />
+                                    <span className="sm:hidden">Download</span>
                                   </Button>
                                 </div>
 

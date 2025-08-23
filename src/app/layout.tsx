@@ -18,6 +18,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FastShare",
   description: "A fast, and easy-to-use file temporary file sharing service",
+  openGraph: {
+    title: "FastShare",
+    description: "A fast, and easy-to-use file temporary file sharing service",
+    url: "https://share.jay2404.me",
+    siteName: "FastShare",
+    images: [
+      {
+        url: "https://share.jay2404.me/favicon.ico",
+        width: 1200,
+        height: 630,
+        alt: "FastShare - Share files quickly and easily",
+      },
+    ],
+  }
 };
 
 export default function RootLayout({
